@@ -7,8 +7,9 @@
  * bus verdict back into Amp's plugin API response shape.
  *
  * Install: drop this file at ~/.config/amp/plugins/hookbus.ts
- * Launch:  amp-hookbus           (wrapper, installed alongside the plugin)
- *          or:  PLUGINS=all amp  (inline, no shell profile pollution)
+ * Launch:  amp                  (normal-command shim installed by install.sh)
+ *          amp-hookbus          (explicit wrapper)
+ *          or: PLUGINS=all amp  (inline, no shell profile pollution)
  *
  * Config resolution order (v0.2.2):
  *   1. process.env.HOOKBUS_*  (inline override, highest priority)
