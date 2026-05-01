@@ -29,9 +29,10 @@ cd hookbus-publisher-amp
 The installer:
 1. Drops `plugin/hookbus.ts` to `~/.config/amp/plugins/hookbus.ts`
 2. Checks for **Bun** (Amp's plugin runtime), offers to install it if missing
-3. Offers to append the required env exports (`HOOKBUS_URL`, `HOOKBUS_TOKEN`, `HOOKBUS_SOURCE`, `PLUGINS=all`) to `~/.bashrc`
+3. Writes HookBus settings to `~/.config/amp/plugins/hookbus.env` with mode `600`
+4. Installs `amp-hookbus` and, when possible, a HookBus-managed normal `amp` shim
 
-Open a new shell and run `amp`. The plugin activates automatically and every lifecycle event flows to the bus.
+Run `amp` or `amp-hookbus`. The plugin reads its local env file; the installer does not write HookBus secrets into your shell profile.
 
 ## Requirements
 
@@ -64,7 +65,7 @@ Fire-and-forget events (`session.start`, `tool.result`, `agent.end`) do not bloc
 | `HOOKBUS_SOURCE` | `amp` | Source label on envelopes |
 | `HOOKBUS_TIMEOUT_MS` | `30000` | HTTP timeout per event |
 | `HOOKBUS_FAIL_MODE` | `open` | `open` allows the action when bus is unreachable; `closed` denies |
-| `PLUGINS` | _(unset)_ | Must be set to `all` for Amp to load plugins |
+| `PLUGINS` | set by wrapper | Must be `all` for Amp to load plugins |
 
 Get the bearer token from the bus container:
 
