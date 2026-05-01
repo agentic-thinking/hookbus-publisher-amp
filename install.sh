@@ -120,7 +120,14 @@ for dir in $PATH; do
 done
 IFS="$OLD_IFS"
 if [ -z "$REAL_AMP" ]; then
-    echo "amp: error: real amp binary not found on PATH" >&2
+    for candidate in "$HOME/.amp/bin/amp" "/usr/local/bin/amp" "/usr/bin/amp"; do
+        [ -x "$candidate" ] || continue
+        REAL_AMP="$candidate"
+        break
+    done
+fi
+if [ -z "$REAL_AMP" ]; then
+    echo "amp: error: real amp binary not found on PATH or ~/.amp/bin/amp" >&2
     exit 127
 fi
 export PLUGINS=all
