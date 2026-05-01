@@ -3,8 +3,8 @@
 #
 # Drops the HookBus TypeScript plugin to ~/.config/amp/plugins/hookbus.ts,
 # writes a per-publisher config file at ~/.config/amp/plugins/hookbus.env
-# (mode 600, contains the bus token), and installs a launcher wrapper
-# ~/.local/bin/amp-hookbus that exports PLUGINS=all and execs amp.
+# (mode 600, contains the bus token), and installs launcher wrappers so both
+# `amp` and `amp-hookbus` start Amp with the HookBus plugin enabled.
 #
 # This installer NEVER writes to shell profiles. Per the 20 April 2026
 # HookBus contamination incident: exporting HOOKBUS_URL / HOOKBUS_TOKEN /
@@ -20,6 +20,7 @@ PLUGIN_DST="$PLUGIN_DIR/hookbus.ts"
 ENV_FILE="$PLUGIN_DIR/hookbus.env"
 BIN_DIR="$HOME/.local/bin"
 WRAPPER="$BIN_DIR/amp-hookbus"
+AMP_SHIM="$BIN_DIR/amp"
 
 say()  { printf "\033[1;32m[amp-publisher]\033[0m %s\n" "$*"; }
 warn() { printf "\033[1;33m[amp-publisher]\033[0m %s\n" "$*"; }
@@ -67,23 +68,67 @@ trap - EXIT
 chmod 600 "$ENV_FILE"
 say "wrote per-publisher config to $ENV_FILE (mode 600)"
 
-# 3. Launcher wrapper. Users invoke amp-hookbus and get PLUGINS=all applied
-#    scoped to that invocation only. Plain amp remains unaffected.
+# 3. Launcher wrappers. Users can type the normal `amp` command and get
+#    PLUGINS=all applied for that invocation only. We also keep amp-hookbus
+#    as an explicit launcher for users who do not put ~/.local/bin first.
 mkdir -p "$BIN_DIR"
 cat > "$WRAPPER" <<'WRAPPER_EOF'
 #!/usr/bin/env bash
 # amp-hookbus: amp launcher with HookBus plugin enabled.
 # PLUGINS=all is scoped to this invocation only, never exported to the shell.
 set -eu
-if ! command -v amp >/dev/null 2>&1; then
-    echo "amp-hookbus: error: 'amp' binary not found on PATH" >&2
+SELF="$(readlink -f "$0" 2>/dev/null || printf "%s" "$0")"
+REAL_AMP=""
+OLD_IFS="$IFS"; IFS=:
+for dir in $PATH; do
+    candidate="$dir/amp"
+    [ -x "$candidate" ] || continue
+    real_candidate="$(readlink -f "$candidate" 2>/dev/null || printf "%s" "$candidate")"
+    [ "$real_candidate" = "$SELF" ] && continue
+    REAL_AMP="$candidate"
+    break
+done
+IFS="$OLD_IFS"
+if [ -z "$REAL_AMP" ]; then
+    echo "amp-hookbus: error: real 'amp' binary not found on PATH" >&2
     exit 127
 fi
 export PLUGINS=all
-exec amp "$@"
+exec "$REAL_AMP" "$@"
 WRAPPER_EOF
 chmod 755 "$WRAPPER"
 say "installed launcher at $WRAPPER"
+
+if [ -e "$AMP_SHIM" ] && ! grep -q "HookBus-managed amp shim" "$AMP_SHIM" 2>/dev/null; then
+    warn "$AMP_SHIM already exists and is not HookBus-managed; leaving normal 'amp' unchanged."
+    warn "Use amp-hookbus, or move ~/.local/bin before the real amp and rerun after removing the conflicting file."
+else
+    cat > "$AMP_SHIM" <<'AMP_SHIM_EOF'
+#!/usr/bin/env bash
+# HookBus-managed amp shim. Runs the real amp with the HookBus plugin enabled.
+set -eu
+SELF="$(readlink -f "$0" 2>/dev/null || printf "%s" "$0")"
+REAL_AMP=""
+OLD_IFS="$IFS"; IFS=:
+for dir in $PATH; do
+    candidate="$dir/amp"
+    [ -x "$candidate" ] || continue
+    real_candidate="$(readlink -f "$candidate" 2>/dev/null || printf "%s" "$candidate")"
+    [ "$real_candidate" = "$SELF" ] && continue
+    REAL_AMP="$candidate"
+    break
+done
+IFS="$OLD_IFS"
+if [ -z "$REAL_AMP" ]; then
+    echo "amp: error: real amp binary not found on PATH" >&2
+    exit 127
+fi
+export PLUGINS=all
+exec "$REAL_AMP" "$@"
+AMP_SHIM_EOF
+    chmod 755 "$AMP_SHIM"
+    say "installed normal-command shim at $AMP_SHIM"
+fi
 
 # 4. Bun check (amp plugin runtime).
 if command -v bun >/dev/null 2>&1; then
@@ -126,9 +171,10 @@ cat <<EOF
 -----------------------------------------------------------------
 Done. Launch amp with the HookBus plugin enabled:
 
-  amp-hookbus          (wrapper scoped to this run only)
+  amp                  (normal command, when ~/.local/bin is first on PATH)
+  amp-hookbus          (explicit wrapper)
 
-Plain 'amp' remains unaffected. The HookBus config lives at:
+The HookBus config lives at:
 
   $ENV_FILE
 
