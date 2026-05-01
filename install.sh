@@ -138,15 +138,21 @@ AMP_SHIM_EOF
 fi
 
 # 4. Bun check (amp plugin runtime).
-if command -v bun >/dev/null 2>&1; then
-    say "bun already installed ($(bun --version))"
+BUN_BIN="$(command -v bun 2>/dev/null || true)"
+if [ -z "$BUN_BIN" ] && [ -x "$HOME/.bun/bin/bun" ]; then
+    BUN_BIN="$HOME/.bun/bin/bun"
+    export PATH="$HOME/.bun/bin:$PATH"
+fi
+if [ -n "$BUN_BIN" ]; then
+    say "bun already installed ($("$BUN_BIN" --version))"
 else
     warn "Bun runtime not found. Amp's plugin API requires Bun to execute TypeScript plugins."
     if ask "install Bun now via bun.sh/install?" "y"; then
         curl -fsSL https://bun.sh/install | bash
         export PATH="$HOME/.bun/bin:$PATH"
-        if command -v bun >/dev/null 2>&1; then
-            say "bun installed at $(command -v bun)"
+        BUN_BIN="$(command -v bun 2>/dev/null || true)"
+        if [ -n "$BUN_BIN" ]; then
+            say "bun installed at $BUN_BIN"
         else
             warn "Bun install finished but 'bun' still not on PATH. Restart your shell."
         fi
